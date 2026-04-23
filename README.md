@@ -1,95 +1,122 @@
-# Zero Trust Security System
+# 🔐 Zero Trust Security System
 
-![React](https://img.shields.io/badge/Frontend-React-61DAFB?logo=react&logoColor=white)
-![Node.js](https://img.shields.io/badge/Backend-Node.js-339933?logo=node.js&logoColor=white)
-![Express](https://img.shields.io/badge/API-Express-000000?logo=express&logoColor=white)
-![Architecture](https://img.shields.io/badge/Security-Zero%20Trust-1f6feb)
-![License](https://img.shields.io/badge/License-MIT-yellow.svg)
+## 🚀 Live Demo
 
-## Overview
-Zero Trust Security System is a full-stack platform that applies Zero Trust Architecture with continuous trust evaluation. It dynamically computes trust, enforces adaptive access policies, and provides real-time monitoring through an interactive dashboard.
+- Frontend: https://zero-trust-security-system.vercel.app
+- Backend: https://zero-trust-security-system.onrender.com
 
-## Features
-- Dynamic trust score calculation using contextual signals (device posture, login time, behavior context)
-- Multi-level access control outcomes: **FULL**, **LIMITED**, **DENIED**
-- Step-up authentication for low-trust sessions
-- Real-time trust monitoring with graph visualization
-- Centralized activity logging for audit and incident analysis
-- Dynamic status factors displayed on login
+---
 
-## Tech Stack
-| Layer | Technology |
-|---|---|
-| Frontend | React (Create React App) |
-| Backend | Node.js, Express |
-| Security Model | Zero Trust, Continuous Trust Evaluation, Adaptive Access Control |
+## 📌 Project Overview
 
-## Project Structure
-```text
-capstone/
-├── frontend/   # React UI (Dashboard, Graph, Alerts, Components)
-└── backend/    # Express API (auth, trust engine, logs, policies)
+This project demonstrates a **Zero Trust Security Model**, where no user or request is trusted by default.
+Every access request is verified through authentication and trust evaluation before granting access.
+
+The system is built as a full-stack application and deployed on cloud platforms to simulate a real-world security environment.
+
+---
+
+## 🧠 Zero Trust Concept
+
+- **Never Trust, Always Verify**
+- Continuous authentication and validation of users
+- Least privilege access control
+- Monitoring of user activity and trust levels
+
+---
+
+## 🛠 Tech Stack
+
+- **Frontend:** React.js
+- **Backend:** Node.js, Express.js
+- **Deployment:** Vercel (Frontend), Render (Backend)
+
+---
+
+## ✨ Features
+
+- 🔑 Secure login system
+- 🔐 Zero Trust-based authentication
+- 📊 Trust score monitoring
+- 📜 Activity logging dashboard
+- ⚡ Real-time backend communication
+
+---
+
+## ⚙️ How It Works
+
+1. User enters login credentials
+2. Backend verifies credentials
+3. System evaluates trust level
+4. Access is granted or denied based on trust
+5. User activity is monitored and displayed
+
+---
+
+## 📂 Project Structure
+
+```
+zero-trust-security-system/
+├── frontend/   # React application
+├── backend/    # Node.js + Express server
 ```
 
-## Installation & Setup
-### 1. Clone Repository
+## 🧪 Running Locally
+
+### 1. Clone the repository
+
 ```bash
-git clone <your-repo-url>
-cd capstone
+git clone https://github.com/VaniSinghalVS/zero-trust-security-system.git
+cd zero-trust-security-system
 ```
 
-### 2. Install Dependencies
+### 2. Backend Setup
+
 ```bash
-# Backend
 cd backend
 npm install
-
-# Frontend
-cd ../frontend
-npm install
+node server.js
 ```
 
-### 3. Start Services
-```bash
-# Terminal 1 - Backend
-cd backend
-npm start
-```
+Backend will run on: `http://localhost:5000`
+
+### 3. Frontend Setup
 
 ```bash
-# Terminal 2 - Frontend
 cd frontend
+npm install
 npm start
 ```
 
-### 4. Open Application
-Frontend: `http://localhost:3000`
+Frontend will run on: `http://localhost:3000`
 
-## Usage
-1. User logs in and contextual trust factors are evaluated.
-2. Trust engine calculates a dynamic trust score.
-3. Policy engine assigns access level: **FULL**, **LIMITED**, or **DENIED**.
-4. Low-trust sessions trigger step-up authentication.
-5. Dashboard displays trust trends, alerts, and status changes.
-6. Activity logs capture access decisions and key security events.
+---
 
-## Screenshots
-> Add screenshots for GitHub and resume showcase.
+## 🔐 Environment Variables
 
-- Login Page  
-	`![Login Page](./docs/screenshots/login.png)`
-- Dashboard Overview  
-	`![Dashboard](./docs/screenshots/dashboard.png)`
-- Trust Graph  
-	`![Trust Graph](./docs/screenshots/trust-graph.png)`
-- Activity Logs  
-	`![Activity Logs](./docs/screenshots/activity-logs.png)`
+- Frontend (`.env`):
+  - `REACT_APP_API_BASE_URL=http://localhost:5000`
+- Production (Vercel):
+  - `REACT_APP_API_BASE_URL=https://zero-trust-security-system.onrender.com`
 
-## Future Improvements
-- AI-based trust scoring for predictive and adaptive decisions
-- Anomaly detection for suspicious behavior patterns
-- Risk-aware policy orchestration across distributed services
-- SIEM/SOAR integration for automated incident response
+---
 
-## License
-Licensed under the MIT License.
+## 🚀 Future Improvements
+
+- Multi-Factor Authentication (MFA)
+- Device fingerprinting
+- AI-based anomaly detection
+- Role-based access control
+
+---
+
+## 🎯 Conclusion
+
+This project showcases how Zero Trust principles can be implemented in a modern web application.
+It provides a practical demonstration of secure authentication, continuous verification, and cloud deployment.
+
+---
+
+## 👩‍💻 Author
+
+**Vani Singhal**
