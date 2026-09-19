@@ -1,0 +1,523 @@
+{
+  "logs": [
+    {
+      "user": "admin",
+      "score": 100,
+      "level": "FULL",
+      "time": "4:11:38 pm"
+    },
+    {
+      "user": "admin",
+      "score": 100,
+      "level": "FULL",
+      "time": "4:10:38 pm"
+    },
+    {
+      "user": "admin",
+      "score": 100,
+      "level": "FULL",
+      "time": "4:09:38 pm"
+    },
+    {
+      "user": "admin",
+      "score": 100,
+      "level": "FULL",
+      "time": "4:08:38 pm"
+    },
+    {
+      "user": "admin",
+      "score": 100,
+      "level": "FULL",
+      "time": "4:07:38 pm"
+    },
+    {
+      "user": "admin",
+      "score": 100,
+      "level": "FULL",
+      "time": "4:06:38 pm"
+    },
+    {
+      "user": "admin",
+      "score": 100,
+      "level": "FULL",
+      "time": "4:05:38 pm"
+    },
+    {
+      "user": "admin",
+      "score": 100,
+      "level": "FULL",
+      "time": "4:04:38 pm"
+    },
+    {
+      "user": "admin",
+      "score": 100,
+      "level": "FULL",
+      "time": "4:04:19 pm"
+    },
+    {
+      "user": "admin",
+      "score": 100,
+      "level": "FULL",
+      "time": "4:04:14 pm"
+    }
+  ],
+  "userProfiles": {
+    "admin": {
+      "knownDevices": [
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36",
+        "test-device-123",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36",
+        "quarantine-test-device",
+        "frontend-demo-device",
+        "demo-laptop-alpha",
+        "demo-tablet-beta",
+        "demo-phone-gamma",
+        "Unknown"
+      ],
+      "usualLoginTimes": {
+        "12": 10,
+        "13": 505,
+        "14": 368,
+        "15": 156,
+        "16": 30
+      },
+      "typicalTrustScoreRange": {
+        "min": 85,
+        "max": 100
+      },
+      "trustHistory": [
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        85,
+        87,
+        88,
+        90,
+        91,
+        93,
+        94,
+        96,
+        97,
+        99,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100
+      ],
+      "deviceEvidence": {
+        "test-device-123": {
+          "seenCount": 9,
+          "firstSeen": "2026-09-19T06:44:48.204Z",
+          "lastSeen": "2026-09-19T07:17:02.875Z",
+          "status": "trusted"
+        },
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36": {
+          "seenCount": 709,
+          "firstSeen": "2026-09-19T07:09:11.473Z",
+          "lastSeen": "2026-09-19T10:41:38.081Z",
+          "status": "trusted"
+        },
+        "quarantine-test-device": {
+          "seenCount": 4,
+          "firstSeen": "2026-09-19T07:30:23.143Z",
+          "lastSeen": "2026-09-19T08:42:53.381Z",
+          "status": "trusted",
+          "stepUpSuccesses": 4
+        },
+        "frontend-demo-device": {
+          "seenCount": 218,
+          "firstSeen": "2026-09-19T07:54:24.005Z",
+          "lastSeen": "2026-09-19T10:28:05.305Z",
+          "status": "trusted",
+          "stepUpSuccesses": 2
+        },
+        "demo-laptop-alpha": {
+          "seenCount": 21,
+          "firstSeen": "2026-09-19T08:51:42.504Z",
+          "lastSeen": "2026-09-19T08:53:07.515Z",
+          "status": "trusted",
+          "stepUpSuccesses": 2
+        },
+        "demo-tablet-beta": {
+          "seenCount": 18,
+          "firstSeen": "2026-09-19T08:53:14.474Z",
+          "lastSeen": "2026-09-19T08:54:19.483Z",
+          "status": "trusted",
+          "stepUpSuccesses": 2
+        },
+        "demo-phone-gamma": {
+          "seenCount": 75,
+          "firstSeen": "2026-09-19T08:54:22.606Z",
+          "lastSeen": "2026-09-19T09:36:37.535Z",
+          "status": "trusted",
+          "stepUpSuccesses": 2
+        },
+        "Unknown": {
+          "seenCount": 1,
+          "firstSeen": "2026-09-19T09:36:59.019Z",
+          "lastSeen": "2026-09-19T09:36:59.019Z",
+          "status": "quarantined",
+          "stepUpSuccesses": 0
+        }
+      },
+      "networkEvidence": {
+        "::1": {
+          "seenCount": 1055,
+          "firstSeen": "2026-09-19T06:44:48.204Z",
+          "lastSeen": "2026-09-19T10:41:38.081Z",
+          "status": "trusted"
+        }
+      },
+      "dimensionReliability": {
+        "device": 1,
+        "behavior": 1,
+        "network": 1,
+        "time": 1
+      },
+      "pendingStepUps": [
+        {
+          "dimension": "device",
+          "passed": true,
+          "timestamp": "2026-09-19T07:34:01.678Z"
+        },
+        {
+          "dimension": "device",
+          "passed": true,
+          "timestamp": "2026-09-19T07:34:03.996Z"
+        },
+        {
+          "dimension": "device",
+          "passed": true,
+          "timestamp": "2026-09-19T07:34:59.353Z"
+        },
+        {
+          "dimension": "device",
+          "passed": true,
+          "timestamp": "2026-09-19T07:35:50.448Z"
+        },
+        {
+          "dimension": "device",
+          "passed": true,
+          "timestamp": "2026-09-19T08:05:28.045Z"
+        },
+        {
+          "dimension": "device",
+          "passed": true,
+          "timestamp": "2026-09-19T08:05:31.723Z"
+        },
+        {
+          "dimension": "device",
+          "passed": true,
+          "timestamp": "2026-09-19T08:51:59.839Z"
+        },
+        {
+          "dimension": "device",
+          "passed": true,
+          "timestamp": "2026-09-19T08:52:02.218Z"
+        },
+        {
+          "dimension": "device",
+          "passed": true,
+          "timestamp": "2026-09-19T08:53:17.652Z"
+        },
+        {
+          "dimension": "device",
+          "passed": true,
+          "timestamp": "2026-09-19T08:53:19.072Z"
+        },
+        {
+          "dimension": "device",
+          "passed": true,
+          "timestamp": "2026-09-19T08:54:31.543Z"
+        },
+        {
+          "dimension": "device",
+          "passed": true,
+          "timestamp": "2026-09-19T08:54:33.913Z"
+        }
+      ]
+    },
+    "brandnewuser": {
+      "knownDevices": [
+        "fresh-device-999"
+      ],
+      "usualLoginTimes": {
+        "12": 1
+      },
+      "typicalTrustScoreRange": {
+        "min": 63,
+        "max": 63
+      },
+      "trustHistory": [
+        63
+      ],
+      "deviceEvidence": {
+        "fresh-device-999": {
+          "seenCount": 1,
+          "firstSeen": "2026-09-19T06:57:53.171Z",
+          "lastSeen": "2026-09-19T06:57:53.171Z",
+          "status": "trusted"
+        }
+      },
+      "networkEvidence": {
+        "::1": {
+          "seenCount": 1,
+          "firstSeen": "2026-09-19T06:57:53.171Z",
+          "lastSeen": "2026-09-19T06:57:53.171Z",
+          "status": "trusted"
+        }
+      },
+      "dimensionReliability": {
+        "device": 1,
+        "behavior": 1,
+        "network": 1,
+        "time": 1
+      },
+      "pendingStepUps": []
+    },
+    "brandnewuser2": {
+      "knownDevices": [
+        "fresh-device-1000"
+      ],
+      "usualLoginTimes": {
+        "12": 1
+      },
+      "typicalTrustScoreRange": {
+        "min": 63,
+        "max": 63
+      },
+      "trustHistory": [
+        63
+      ],
+      "deviceEvidence": {
+        "fresh-device-1000": {
+          "seenCount": 1,
+          "firstSeen": "2026-09-19T07:00:08.475Z",
+          "lastSeen": "2026-09-19T07:00:08.475Z",
+          "status": "trusted"
+        }
+      },
+      "networkEvidence": {
+        "::1": {
+          "seenCount": 1,
+          "firstSeen": "2026-09-19T07:00:08.475Z",
+          "lastSeen": "2026-09-19T07:00:08.475Z",
+          "status": "trusted"
+        }
+      },
+      "dimensionReliability": {
+        "device": 1,
+        "behavior": 1,
+        "network": 1,
+        "time": 1
+      },
+      "pendingStepUps": []
+    },
+    "brandnewuser3": {
+      "knownDevices": [
+        "fresh-device-2000"
+      ],
+      "usualLoginTimes": {
+        "12": 1
+      },
+      "typicalTrustScoreRange": {
+        "min": 46,
+        "max": 46
+      },
+      "trustHistory": [
+        46
+      ],
+      "deviceEvidence": {
+        "fresh-device-2000": {
+          "seenCount": 1,
+          "firstSeen": "2026-09-19T07:01:02.709Z",
+          "lastSeen": "2026-09-19T07:01:02.709Z",
+          "status": "trusted"
+        }
+      },
+      "networkEvidence": {
+        "::1": {
+          "seenCount": 1,
+          "firstSeen": "2026-09-19T07:01:02.709Z",
+          "lastSeen": "2026-09-19T07:01:02.709Z",
+          "status": "trusted"
+        }
+      },
+      "dimensionReliability": {
+        "device": 1,
+        "behavior": 1,
+        "network": 1,
+        "time": 1
+      },
+      "pendingStepUps": []
+    },
+    "brandnewuser4": {
+      "knownDevices": [
+        "fresh-device-3000"
+      ],
+      "usualLoginTimes": {
+        "12": 2
+      },
+      "typicalTrustScoreRange": {
+        "min": 50,
+        "max": 66
+      },
+      "trustHistory": [
+        50,
+        66
+      ],
+      "deviceEvidence": {
+        "fresh-device-3000": {
+          "seenCount": 2,
+          "firstSeen": "2026-09-19T07:04:19.053Z",
+          "lastSeen": "2026-09-19T07:05:53.584Z",
+          "status": "trusted"
+        }
+      },
+      "networkEvidence": {
+        "::1": {
+          "seenCount": 2,
+          "firstSeen": "2026-09-19T07:04:19.053Z",
+          "lastSeen": "2026-09-19T07:05:53.584Z",
+          "status": "trusted"
+        }
+      },
+      "dimensionReliability": {
+        "device": 1,
+        "behavior": 1,
+        "network": 1,
+        "time": 1
+      },
+      "pendingStepUps": []
+    },
+    "eval_legit_user": {
+      "knownDevices": [
+        "eval-laptop",
+        "eval-phone",
+        "eval-attacker-device"
+      ],
+      "usualLoginTimes": {
+        "15": 30
+      },
+      "typicalTrustScoreRange": {
+        "min": 38,
+        "max": 100
+      },
+      "trustHistory": [
+        100,
+        83,
+        80,
+        76,
+        75,
+        72,
+        69,
+        60,
+        51,
+        61,
+        58,
+        76,
+        58,
+        58,
+        58,
+        53,
+        58,
+        58,
+        58,
+        58,
+        38,
+        58,
+        43,
+        58,
+        43,
+        58,
+        43,
+        58,
+        43,
+        58
+      ],
+      "deviceEvidence": {
+        "eval-laptop": {
+          "seenCount": 10,
+          "firstSeen": "2026-09-19T09:32:00.802Z",
+          "lastSeen": "2026-09-19T09:32:15.037Z",
+          "status": "quarantined",
+          "stepUpSuccesses": 0
+        },
+        "eval-phone": {
+          "seenCount": 5,
+          "firstSeen": "2026-09-19T09:32:05.887Z",
+          "lastSeen": "2026-09-19T09:32:11.986Z",
+          "status": "trusted",
+          "stepUpSuccesses": 2
+        },
+        "eval-attacker-device": {
+          "seenCount": 15,
+          "firstSeen": "2026-09-19T09:32:16.052Z",
+          "lastSeen": "2026-09-19T09:32:30.270Z",
+          "status": "quarantined",
+          "stepUpSuccesses": 0
+        }
+      },
+      "networkEvidence": {
+        "::1": {
+          "seenCount": 30,
+          "firstSeen": "2026-09-19T09:32:00.802Z",
+          "lastSeen": "2026-09-19T09:32:30.270Z",
+          "status": "quarantined",
+          "stepUpSuccesses": 0
+        }
+      },
+      "dimensionReliability": {
+        "device": 1,
+        "behavior": 1,
+        "network": 1,
+        "time": 1
+      },
+      "pendingStepUps": [
+        {
+          "dimension": "device",
+          "passed": true,
+          "timestamp": "2026-09-19T09:32:06.899Z"
+        },
+        {
+          "dimension": "device",
+          "passed": true,
+          "timestamp": "2026-09-19T09:32:07.919Z"
+        }
+      ]
+    }
+  }
+}

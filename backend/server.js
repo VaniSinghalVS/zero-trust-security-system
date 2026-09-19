@@ -4,6 +4,9 @@ const bodyParser = require("body-parser");
 const fs = require("fs");
 const path = require("path");
 
+const threatIntel = require("./threat-intel");
+const globalIntel = threatIntel.createGlobalIntel();
+
 const app = express();
 
 const TRUST_ACTION_THRESHOLDS = {
@@ -435,7 +438,7 @@ function calculateTimeTrust(context, familiarity, confidence) {
   return { score: clampScore(score), reasons };
 }
 
-function calculateTrust(user, context, behaviorInput = {}) {
+function calculateTrust(user, context, behaviorInput = {}, globalRisk = { deviceRisk: 0, networkRisk: 0, reasons: [] }) {
   const profile = getUserProfile(user);
 
   const totalDeviceEvidence = Object.values(profile.deviceEvidence || {})
@@ -469,6 +472,13 @@ function calculateTrust(user, context, behaviorInput = {}) {
   const behaviorTrust = calculateBehaviorTrust(context);
   const network = calculateNetworkTrust(context, networkFamiliarity, networkConfidence);
   const time = calculateTimeTrust(context, timeFamiliarity, timeConfidence);
+
+  if (globalRisk.deviceRisk > 0) {
+    device.score = clampScore(device.score - (globalRisk.deviceRisk * 55));
+  }
+  if (globalRisk.networkRisk > 0) {
+    network.score = clampScore(network.score - (globalRisk.networkRisk * 55));
+  }
 
   const failedAttempts = Number(context.failedAttempts) || 0;
   const hasExplicitRiskSignals =
@@ -529,11 +539,14 @@ function calculateTrust(user, context, behaviorInput = {}) {
   const anomalyDetected = isAnomalyDetected(context);
   let action = determineAction(finalTrust, context);
 
+  const crossAccountBurned = globalRisk.deviceRisk >= 1 || globalRisk.networkRisk >= 1;
+
   const reasons = [
     ...device.reasons.map((reason) => `deviceTrust: ${reason}`),
     ...behaviorTrust.reasons.map((reason) => `behaviorTrust: ${reason}`),
     ...network.reasons.map((reason) => `networkTrust: ${reason}`),
-    ...time.reasons.map((reason) => `timeTrust: ${reason}`)
+    ...time.reasons.map((reason) => `timeTrust: ${reason}`),
+    ...globalRisk.reasons
   ];
 
   if (compoundPenaltyReason) {
@@ -554,13 +567,18 @@ function calculateTrust(user, context, behaviorInput = {}) {
   if (finalTrust < ACCESS_LEVEL_TRUST_THRESHOLDS.full) level = "LIMITED";
   if (finalTrust < ACCESS_LEVEL_TRUST_THRESHOLDS.limited) level = "DENIED";
 
+  if (crossAccountBurned) {
+    action = "BLOCK";
+    level = "DENIED";
+  }
+
   const overallConfidence = Math.min(
     deviceConfidence,
     networkConfidence,
     timeConfidence
   );
 
-  if (overallConfidence < 0.3) {
+  if (overallConfidence < 0.3 && !crossAccountBurned) {
     if (level === "FULL") {
       level = "LIMITED";
       reasons.push("Cold start: level capped at LIMITED due to low evidence confidence");
@@ -723,7 +741,9 @@ app.post("/login", (req, res) => {
     }
 
     const ip = req.ip || (req.connection && req.connection.remoteAddress) || "unknown-ip";
-    const trust = calculateTrust(username, context, { device, time, ip });
+    threatIntel.recordAttempt(globalIntel, { username, device, network: ip });
+    const globalRisk = threatIntel.getGlobalRisk(globalIntel, { device, network: ip });
+    const trust = calculateTrust(username, context, { device, time, ip }, globalRisk);
     updateUserProfile(profile, { device, time, trustScore: trust.score, ip });
 
     // Send response
@@ -753,7 +773,11 @@ app.get("/api/trust-score", (req, res) => {
   const profile = getUserProfile(username);
   const context = buildTrustContext(req);
 
-  const trust = calculateTrust(username, context, { device, time, ip });
+  threatIntel.recordAttempt(globalIntel, { username, device, network: ip });
+  const globalRisk = threatIntel.getGlobalRisk(globalIntel, { device, network: ip });
+
+  const ignoreIntel = req.query.ignoreIntel === "true";
+  const trust = calculateTrust(username, context, { device, time, ip }, ignoreIntel ? undefined : globalRisk);
 
   updateUserProfile(profile, {
     device,
@@ -842,6 +866,13 @@ app.post("/api/step-up-confirm", (req, res) => {
   if (profile.pendingStepUps.length > 30) {
     profile.pendingStepUps.shift();
   }
+
+  const outcome = passed ? "success" : "failure";
+  threatIntel.recordGlobalOutcome(globalIntel, {
+    device: dimension === "device" ? value : undefined,
+    network: dimension === "network" ? value : undefined,
+    outcome
+  });
 
   saveData();
 
