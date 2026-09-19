@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useLocation } from "react-router-dom";
 import "./Dashboard.css";
 import TrustScoreCard from "./components/TrustScoreCard";
@@ -139,10 +139,21 @@ function Dashboard() {
   const initialRiskContext = data?.riskContext || null;
 
   const [trust, setTrust] = useState(() => initialTrust);
+  const [simulatedDevice, setSimulatedDevice] = useState("");
+  const [deviceInputValue, setDeviceInputValue] = useState("");
 
   const [logs, setLogs] = useState([]);
   const [verified, setVerified] = useState(false);
   const [history, setHistory] = useState(() => {
+    // Seed from server-persisted trustHistory if present; fall back to single login point.
+    const serverHistory = data?.userProfile?.trustHistory;
+    if (Array.isArray(serverHistory) && serverHistory.length > 0) {
+      const now = Date.now();
+      return serverHistory.map((score, i) => ({
+        time: now - (serverHistory.length - 1 - i) * 30000,
+        score: Math.max(0, Math.min(100, Number(score)))
+      }));
+    }
     const initialComponents = getTrustComponents(initialTrust);
     return [
       {
@@ -171,88 +182,106 @@ function Dashboard() {
     }
     : {};
 
-  useEffect(() => {
-    const fetchTrustScore = async () => {
-      try {
-        const queryParams = new URLSearchParams();
-        if (data?.username) {
-          queryParams.set("username", data.username);
-        }
+  const fetchTrustScore = useCallback(async (overrideDevice) => {
+    try {
+      const queryParams = new URLSearchParams();
+      if (data?.username) {
+        queryParams.set("username", data.username);
+      }
 
-        if (initialRiskContext) {
-          const booleanKeys = [
-            "newIP",
-            "unknownDevice",
-            "oddTime",
-            "suspiciousBehavior",
-            "anomalyDetected",
-            "proxyOrVpn",
-            "deviceMismatch"
-          ];
+      const effectiveDevice = overrideDevice || simulatedDevice || navigator.userAgent;
+      queryParams.set("device", effectiveDevice);
 
-          booleanKeys.forEach((key) => {
-            if (typeof initialRiskContext[key] === "boolean") {
-              queryParams.set(key, String(initialRiskContext[key]));
-            }
-          });
+      if (initialRiskContext) {
+        const booleanKeys = [
+          "newIP",
+          "unknownDevice",
+          "oddTime",
+          "suspiciousBehavior",
+          "anomalyDetected",
+          "proxyOrVpn",
+          "deviceMismatch"
+        ];
 
-          if (Number.isFinite(Number(initialRiskContext.failedAttempts))) {
-            queryParams.set("failedAttempts", String(Number(initialRiskContext.failedAttempts)));
+        booleanKeys.forEach((key) => {
+          if (typeof initialRiskContext[key] === "boolean") {
+            queryParams.set(key, String(initialRiskContext[key]));
           }
-        }
-
-        queryParams.set("_ts", String(Date.now()));
-
-        const querySuffix = queryParams.toString() ? `?${queryParams.toString()}` : "";
-        const response = await fetch(`${API_BASE_URL}/api/trust-score${querySuffix}`, {
-          headers: {
-            ...authHeaders,
-            "Cache-Control": "no-cache"
-          },
-          cache: "no-store"
         });
 
-        if (!response.ok) {
-          throw new Error(`Trust API failed with status ${response.status}`);
+        if (Number.isFinite(Number(initialRiskContext.failedAttempts))) {
+          queryParams.set("failedAttempts", String(Number(initialRiskContext.failedAttempts)));
+        }
+      }
+
+      queryParams.set("_ts", String(Date.now()));
+
+      const querySuffix = queryParams.toString() ? `?${queryParams.toString()}` : "";
+      const response = await fetch(`${API_BASE_URL}/api/trust-score${querySuffix}`, {
+        headers: {
+          ...authHeaders,
+          "Cache-Control": "no-cache"
+        },
+        cache: "no-store"
+      });
+
+      if (!response.ok) {
+        throw new Error(`Trust API failed with status ${response.status}`);
+      }
+
+      const trustData = await response.json();
+      const trustComponents = getTrustComponents(trustData);
+      const previousScore = previousScoreRef.current;
+      const currentScore = clampScore(Number(trustData?.score) || 0);
+
+      if (previousScore !== null && previousScore - currentScore > TRUST_DROP_ALERT_THRESHOLD) {
+        setShowDropAlert(true);
+
+        if (alertTimeoutRef.current) {
+          clearTimeout(alertTimeoutRef.current);
         }
 
-        const trustData = await response.json();
-        const trustComponents = getTrustComponents(trustData);
-        const previousScore = previousScoreRef.current;
-        const currentScore = clampScore(Number(trustData?.score) || 0);
+        alertTimeoutRef.current = setTimeout(() => {
+          setShowDropAlert(false);
+        }, ALERT_AUTO_HIDE_MS);
+      }
 
-        if (previousScore !== null && previousScore - currentScore > TRUST_DROP_ALERT_THRESHOLD) {
-          setShowDropAlert(true);
+      const anomalyFlag = Boolean(trustData?.anomaly || trustData?.anomalyDetected);
+      setIsAnomalyDetected(anomalyFlag);
 
-          if (alertTimeoutRef.current) {
-            clearTimeout(alertTimeoutRef.current);
-          }
+      previousScoreRef.current = currentScore;
+      setTrust((prev) => {
+        const incomingReasons = Array.isArray(trustData?.reasons) ? trustData.reasons : [];
+        const reasons = incomingReasons.length > 0 ? incomingReasons : prev.reasons || [];
 
-          alertTimeoutRef.current = setTimeout(() => {
-            setShowDropAlert(false);
-          }, ALERT_AUTO_HIDE_MS);
-        }
+        return {
+          ...trustData,
+          score: currentScore,
+          reasons,
+          level: trustData?.level || "FULL",
+          action: trustData?.action || "NORMAL",
+          anomalyDetected: anomalyFlag
+        };
+      });
 
-        const anomalyFlag = Boolean(trustData?.anomaly || trustData?.anomalyDetected);
-        setIsAnomalyDetected(anomalyFlag);
-
-        previousScoreRef.current = currentScore;
-        setTrust((prev) => {
-          const incomingReasons = Array.isArray(trustData?.reasons) ? trustData.reasons : [];
-          const reasons = incomingReasons.length > 0 ? incomingReasons : prev.reasons || [];
-
-          return {
-            ...trustData,
-            score: currentScore,
-            reasons,
-            level: trustData?.level || "FULL",
-            action: trustData?.action || "NORMAL",
-            anomalyDetected: anomalyFlag
-          };
-        });
-
+      // Rebuild history from the server-persisted trustHistory on every poll,
+      // so the graph always reflects the full cross-session record.
+      const serverHistory = trustData?.userProfile?.trustHistory;
+      if (Array.isArray(serverHistory) && serverHistory.length > 0) {
+        const now = Date.now();
+        setHistory(
+          serverHistory.map((s, i) => ({
+            time: now - (serverHistory.length - 1 - i) * 30000,
+            score: Math.max(0, Math.min(100, Number(s))),
+            deviceTrust: trustComponents.deviceTrust,
+            behaviorTrust: trustComponents.behaviorTrust,
+            networkTrust: trustComponents.networkTrust,
+            timeTrust: trustComponents.timeTrust
+          }))
+        );
+      } else {
         setHistory((prev) => [
-          ...prev.slice(-9),
+          ...prev.slice(-49),
           {
             time: Date.now(),
             score: currentScore,
@@ -262,13 +291,15 @@ function Dashboard() {
             timeTrust: trustComponents.timeTrust
           }
         ]);
-      } catch (error) {
-        console.error("Failed to fetch trust score", error);
       }
-    };
+    } catch (error) {
+      console.error("Failed to fetch trust score", error);
+    }
+  }, [token, data?.username, simulatedDevice]);
 
+  useEffect(() => {
     fetchTrustScore();
-    const interval = setInterval(fetchTrustScore, TRUST_SCORE_POLL_INTERVAL_MS);
+    const interval = setInterval(() => fetchTrustScore(), TRUST_SCORE_POLL_INTERVAL_MS);
 
     return () => {
       clearInterval(interval);
@@ -276,7 +307,7 @@ function Dashboard() {
         clearTimeout(alertTimeoutRef.current);
       }
     };
-  }, [token, data?.username]);
+  }, [fetchTrustScore]);
 
   useEffect(() => {
     fetch(`${API_BASE_URL}/api/logs`, { headers: authHeaders })
@@ -313,49 +344,12 @@ function Dashboard() {
 
   if (!data) return <h2>No Data</h2>;
 
-  if (currentAction === "BLOCK") {
-    return (
-      <AccessStatus
-        mode="blocked"
-        action={currentAction}
-        trustScore={lockedTrust.score}
-        reasons={lockedTrust.reasons || []}
-      />
-    );
-  }
-
-  if (currentAction === "STEP_UP_AUTH" && !verified) {
-    return (
-      <AccessStatus
-        mode="step-up"
-        action={currentAction}
-        trustScore={lockedTrust.score}
-        reasons={lockedTrust.reasons || []}
-        onVerify={() => setVerified(true)}
-      />
-    );
-  }
-
-  if (trust.score < 50 && !verified) {
-    return (
-      <AccessStatus
-        mode="denied"
-        trustScore={trust.score}
-        reasons={trust.reasons || []}
-        onVerify={() => setVerified(true)}
-      />
-    );
-  }
-
-  if (verified) {
-    return <AccessStatus mode="verified" />;
-  }
-
-  if (trust.score < 80) {
-    return (
-      <AccessStatus mode="limited" trustScore={trust.score} reasons={trust.reasons || []} />
-    );
-  }
+  const accessBannerMode =
+    currentAction === "BLOCK" ? "blocked"
+    : currentAction === "STEP_UP_AUTH" && !verified ? "step-up"
+    : trust.score < 50 && !verified ? "denied"
+    : trust.score < 80 ? "limited"
+    : null;
 
   return (
     <div className="dashboard-container">
@@ -375,6 +369,18 @@ function Dashboard() {
         <div className="trust-alert-banner" role="alert" aria-live="assertive">
           <span className="trust-alert-icon">⚠️</span>
           <span className="trust-alert-text">Suspicious activity detected</span>
+        </div>
+      )}
+
+      {accessBannerMode && (
+        <div style={{ marginBottom: "16px" }}>
+          <AccessStatus
+            mode={accessBannerMode}
+            action={currentAction}
+            trustScore={lockedTrust.score}
+            reasons={lockedTrust.reasons || []}
+            onVerify={accessBannerMode === "step-up" || accessBannerMode === "denied" ? () => setVerified(true) : undefined}
+          />
         </div>
       )}
 
@@ -419,6 +425,91 @@ function Dashboard() {
             Multi-Dimensional Trust
           </div>
 
+          {/* Dynamic Weights Row */}
+          {trust.dynamicWeights && (
+            <div style={{ marginTop: "16px", fontSize: "0.78rem", color: "#888", display: "flex", gap: "12px", flexWrap: "wrap" }}>
+              <span style={{ fontWeight: 600, color: "#555" }}>Adaptive weights:</span>
+              <span>Device {Math.round((trust.dynamicWeights.device || 0) * 100)}%</span>
+              <span>·</span>
+              <span>Behavior {Math.round((trust.dynamicWeights.behavior || 0) * 100)}%</span>
+              <span>·</span>
+              <span>Network {Math.round((trust.dynamicWeights.network || 0) * 100)}%</span>
+              <span>·</span>
+              <span>Time {Math.round((trust.dynamicWeights.time || 0) * 100)}%</span>
+            </div>
+          )}
+
+          {/* Simulate New Device */}
+          <div style={{ marginTop: "16px", display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+            <input
+              id="simulate-device-input"
+              type="text"
+              placeholder="Simulate new device string…"
+              value={deviceInputValue}
+              onChange={(e) => setDeviceInputValue(e.target.value)}
+              style={{ flex: 1, minWidth: "180px", padding: "6px 10px", borderRadius: "6px", border: "1px solid #ccc", fontSize: "0.85rem" }}
+            />
+            <button
+              id="simulate-device-btn"
+              onClick={() => {
+                setSimulatedDevice(deviceInputValue.trim() || "");
+                fetchTrustScore(deviceInputValue.trim() || undefined);
+              }}
+              style={{ padding: "6px 14px", borderRadius: "6px", border: "none", background: "#6366f1", color: "#fff", cursor: "pointer", fontSize: "0.85rem" }}
+            >
+              Simulate new device
+            </button>
+            {simulatedDevice && (
+              <button
+                id="reset-device-btn"
+                onClick={() => { setSimulatedDevice(""); setDeviceInputValue(""); }}
+                style={{ padding: "6px 10px", borderRadius: "6px", border: "1px solid #ccc", background: "transparent", cursor: "pointer", fontSize: "0.8rem", color: "#888" }}
+              >
+                Reset
+              </button>
+            )}
+          </div>
+
+          {/* Step-up trigger button — visible whenever any dimension is unverified */}
+          {trust.quarantineStatus && (
+            trust.quarantineStatus.device === "quarantined" ||
+            trust.quarantineStatus.device === "new" ||
+            trust.quarantineStatus.network === "quarantined" ||
+            trust.quarantineStatus.network === "new"
+          ) && (
+            <div style={{ marginTop: "12px" }}>
+              <button
+                id="step-up-btn"
+                onClick={async () => {
+                  const quarantine = trust.quarantineStatus || {};
+                  const dimension =
+                    quarantine.device === "quarantined" || quarantine.device === "new"
+                      ? "device"
+                      : "network";
+                  const value =
+                    dimension === "device"
+                      ? (simulatedDevice || navigator.userAgent)
+                      : (trust.userProfile?.networkEvidence
+                          ? Object.keys(trust.userProfile.networkEvidence)[0]
+                          : "unknown-ip");
+                  try {
+                    await fetch(`${API_BASE_URL}/api/step-up-confirm`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ username: data?.username, dimension, value, passed: true })
+                    });
+                    fetchTrustScore(simulatedDevice || undefined);
+                  } catch (err) {
+                    console.error("Step-up confirm failed", err);
+                  }
+                }}
+                style={{ padding: "8px 18px", borderRadius: "6px", border: "none", background: "#f59e0b", color: "#fff", cursor: "pointer", fontWeight: 600, fontSize: "0.9rem" }}
+              >
+                🔐 Simulate step-up authentication
+              </button>
+            </div>
+          )}
+
           <div className="dimension-grid">
             {trustDimensions.map((dimension) => {
               const rawValue = resolveComponentScore(trust, dimension.key);
@@ -428,9 +519,34 @@ function Dashboard() {
 
               return (
                 <div key={dimension.key} className="dimension-card">
-                  <div className="dimension-label">{dimension.label}</div>
+                  <div className="dimension-label">
+                    {dimension.label}
+                    {/* Quarantine badge for device and network */}
+                    {dimension.key === "deviceTrust" && trust.quarantineStatus && (trust.quarantineStatus.device === "quarantined" || trust.quarantineStatus.device === "new") && (
+                      <span id="quarantine-badge-device" style={{ marginLeft: "8px", fontSize: "0.68rem", background: "#fef3c7", color: "#92400e", border: "1px solid #fbbf24", borderRadius: "4px", padding: "1px 6px", verticalAlign: "middle" }}>⚠ Unverified — pending step-up</span>
+                    )}
+                    {dimension.key === "deviceTrust" && trust.quarantineStatus?.device === "trusted" && (
+                      <span style={{ marginLeft: "8px", fontSize: "0.68rem", color: "#16a34a" }}>✓ Verified</span>
+                    )}
+                    {dimension.key === "networkTrust" && trust.quarantineStatus && (trust.quarantineStatus.network === "quarantined" || trust.quarantineStatus.network === "new") && (
+                      <span id="quarantine-badge-network" style={{ marginLeft: "8px", fontSize: "0.68rem", background: "#fef3c7", color: "#92400e", border: "1px solid #fbbf24", borderRadius: "4px", padding: "1px 6px", verticalAlign: "middle" }}>⚠ Unverified — pending step-up</span>
+                    )}
+                    {dimension.key === "networkTrust" && trust.quarantineStatus?.network === "trusted" && (
+                      <span style={{ marginLeft: "8px", fontSize: "0.68rem", color: "#16a34a" }}>✓ Verified</span>
+                    )}
+                  </div>
                   <div className="dimension-value" style={{ color: dimension.color }}>
                     {displayValue}
+                    {/* Confidence sub-label */}
+                    {trust.confidence && (() => {
+                      const confKey = dimension.key.replace("Trust", "");
+                      const confVal = trust.confidence[confKey];
+                      return Number.isFinite(confVal) ? (
+                        <span style={{ fontSize: "0.72rem", color: "#999", marginLeft: "6px", fontWeight: 400 }}>
+                          (confidence: {confVal.toFixed(2)})
+                        </span>
+                      ) : null;
+                    })()}
                   </div>
                   <div className="dimension-meter">
                     <div

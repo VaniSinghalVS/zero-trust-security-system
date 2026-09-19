@@ -28,12 +28,7 @@ const TRUST_COMPONENT_LABELS = {
   timeTrust: "Time trust"
 };
 
-const TRUST_DEMO_BASE_RANGE = {
-  min: 62,
-  max: 92
-};
 
-const TRUST_DEMO_COMPONENT_JITTER = 12;
 
 const ANOMALY_SIGNAL_THRESHOLD = parseThreshold(process.env.ANOMALY_SIGNAL_THRESHOLD, 1);
 
@@ -54,7 +49,11 @@ function createDefaultProfile() {
     knownDevices: [],
     usualLoginTimes: {},
     typicalTrustScoreRange: { min: 100, max: 100 },
-    trustHistory: []
+    trustHistory: [],
+    deviceEvidence: {},
+    networkEvidence: {},
+    dimensionReliability: { device: 1.0, behavior: 1.0, network: 1.0, time: 1.0 },
+    pendingStepUps: []
   };
 }
 
@@ -88,7 +87,27 @@ function normalizeProfile(profile) {
       ? profile.trustHistory
           .map((score) => Number(score))
           .filter((score) => Number.isFinite(score))
-      : defaultProfile.trustHistory
+      : defaultProfile.trustHistory,
+    deviceEvidence:
+      profile.deviceEvidence && typeof profile.deviceEvidence === "object"
+        ? profile.deviceEvidence
+        : defaultProfile.deviceEvidence,
+    networkEvidence:
+      profile.networkEvidence && typeof profile.networkEvidence === "object"
+        ? profile.networkEvidence
+        : defaultProfile.networkEvidence,
+    dimensionReliability:
+      profile.dimensionReliability && typeof profile.dimensionReliability === "object"
+        ? {
+            device: Number.isFinite(Number(profile.dimensionReliability.device)) ? Number(profile.dimensionReliability.device) : defaultProfile.dimensionReliability.device,
+            behavior: Number.isFinite(Number(profile.dimensionReliability.behavior)) ? Number(profile.dimensionReliability.behavior) : defaultProfile.dimensionReliability.behavior,
+            network: Number.isFinite(Number(profile.dimensionReliability.network)) ? Number(profile.dimensionReliability.network) : defaultProfile.dimensionReliability.network,
+            time: Number.isFinite(Number(profile.dimensionReliability.time)) ? Number(profile.dimensionReliability.time) : defaultProfile.dimensionReliability.time
+          }
+        : defaultProfile.dimensionReliability,
+    pendingStepUps: Array.isArray(profile.pendingStepUps)
+      ? profile.pendingStepUps
+      : defaultProfile.pendingStepUps
   };
 }
 
@@ -148,7 +167,11 @@ function buildUserProfileSnapshot(profile) {
   return {
     knownDevices: [...profile.knownDevices],
     usualLoginTimes: { ...profile.usualLoginTimes },
-    typicalTrustScoreRange: { ...profile.typicalTrustScoreRange }
+    typicalTrustScoreRange: { ...profile.typicalTrustScoreRange },
+    deviceEvidence: { ...profile.deviceEvidence },
+    networkEvidence: { ...profile.networkEvidence },
+    dimensionReliability: { ...profile.dimensionReliability },
+    pendingStepUps: [...profile.pendingStepUps]
   };
 }
 
@@ -164,13 +187,29 @@ function parseLoginHour(time) {
 }
 
 function updateUserProfile(profile, behavior) {
-  const { device, time, trustScore } = behavior;
+  const { device, time, trustScore, ip } = behavior;
 
   if (device && !profile.knownDevices.includes(device)) {
     profile.knownDevices.push(device);
     if (profile.knownDevices.length > 20) {
       profile.knownDevices.shift();
     }
+  }
+
+  if (device) {
+    if (!profile.deviceEvidence[device]) {
+       profile.deviceEvidence[device] = { seenCount: 0, firstSeen: new Date().toISOString(), lastSeen: new Date().toISOString(), status: "quarantined", stepUpSuccesses: 0 };
+    }
+    profile.deviceEvidence[device].seenCount += 1;
+    profile.deviceEvidence[device].lastSeen = new Date().toISOString();
+  }
+
+  if (ip) {
+    if (!profile.networkEvidence[ip]) {
+       profile.networkEvidence[ip] = { seenCount: 0, firstSeen: new Date().toISOString(), lastSeen: new Date().toISOString(), status: "quarantined", stepUpSuccesses: 0 };
+    }
+    profile.networkEvidence[ip].seenCount += 1;
+    profile.networkEvidence[ip].lastSeen = new Date().toISOString();
   }
 
   const hour = parseLoginHour(time);
@@ -311,26 +350,30 @@ function normalizeWeights(weights) {
   };
 }
 
-function calculateDeviceTrust(context, adaptive) {
-  let score = 100;
+function computeBaseScore(familiarity, confidence) {
+  return Math.round(50 + (familiarity - 0.5) * 2 * 50 * confidence);
+}
+
+function calculateDeviceTrust(context, familiarity, confidence) {
+  let score = computeBaseScore(familiarity, confidence);
   const reasons = [];
 
   if (context.unknownDevice) {
-    const penalty = adaptive.knownDeviceMatch ? 15 : 40;
+    const penalty = familiarity > 0.5 ? 15 : 40;
     score -= penalty;
     reasons.push(
-      adaptive.knownDeviceMatch
-        ? "Unknown device signal reduced due to known device history"
+      familiarity > 0.5
+        ? "Unknown device signal reduced due to device familiarity"
         : "Unknown device"
     );
   }
 
   if (context.deviceMismatch) {
-    const penalty = adaptive.knownDeviceMatch ? 10 : 25;
+    const penalty = familiarity > 0.5 ? 10 : 25;
     score -= penalty;
     reasons.push(
-      adaptive.knownDeviceMatch
-        ? "Device fingerprint mismatch penalty reduced for known device"
+      familiarity > 0.5
+        ? "Device fingerprint mismatch penalty reduced due to device familiarity"
         : "Device fingerprint mismatch"
     );
   }
@@ -357,12 +400,13 @@ function calculateBehaviorTrust(context) {
   return { score: clampScore(score), reasons };
 }
 
-function calculateNetworkTrust(context) {
-  let score = 100;
+function calculateNetworkTrust(context, familiarity, confidence) {
+  let score = computeBaseScore(familiarity, confidence);
   const reasons = [];
 
   if (context.newIP) {
-    score -= 30;
+    const penalty = familiarity > 0.5 ? 10 : 30;
+    score -= penalty;
     reasons.push("New IP detected");
   }
 
@@ -374,15 +418,15 @@ function calculateNetworkTrust(context) {
   return { score: clampScore(score), reasons };
 }
 
-function calculateTimeTrust(context, adaptive) {
-  let score = 100;
+function calculateTimeTrust(context, familiarity, confidence) {
+  let score = computeBaseScore(familiarity, confidence);
   const reasons = [];
 
   if (context.oddTime) {
-    const penalty = adaptive.usualTimeMatch ? 6 : 20;
+    const penalty = familiarity > 0.5 ? 6 : 20;
     score -= penalty;
     reasons.push(
-      adaptive.usualTimeMatch
+      familiarity > 0.5
         ? "Unusual time penalty reduced due to repeated login pattern"
         : "Unusual login time"
     );
@@ -393,21 +437,38 @@ function calculateTimeTrust(context, adaptive) {
 
 function calculateTrust(user, context, behaviorInput = {}) {
   const profile = getUserProfile(user);
+
+  const totalDeviceEvidence = Object.values(profile.deviceEvidence || {})
+    .filter(d => d.status === "trusted")
+    .reduce((sum, d) => sum + (d.seenCount || 0), 0) + profile.knownDevices.length;
+  const totalNetworkEvidence = Object.values(profile.networkEvidence || {})
+    .filter(n => n.status === "trusted")
+    .reduce((sum, n) => sum + (n.seenCount || 0), 0);
+  const totalTimeEvidence = Object.values(profile.usualLoginTimes || {}).reduce((sum, count) => sum + count, 0);
+
+  const deviceEntry = behaviorInput.device && profile.deviceEvidence && profile.deviceEvidence[behaviorInput.device];
+  const deviceCount = deviceEntry && deviceEntry.status === "trusted" 
+    ? deviceEntry.seenCount 
+    : (behaviorInput.device && profile.knownDevices.includes(behaviorInput.device) ? 1 : 0);
+  const deviceFamiliarity = Math.min(1, deviceCount / 10);
+  const deviceConfidence = Math.min(1, totalDeviceEvidence / 5);
+
+  const networkEntry = behaviorInput.ip && profile.networkEvidence && profile.networkEvidence[behaviorInput.ip];
+  const networkCount = networkEntry && networkEntry.status === "trusted"
+    ? networkEntry.seenCount
+    : 0;
+  const networkFamiliarity = Math.min(1, networkCount / 10);
+  const networkConfidence = Math.min(1, totalNetworkEvidence / 5);
+
   const currentHour = parseLoginHour(behaviorInput.time);
-  const knownDeviceMatch = Boolean(
-    behaviorInput.device && profile.knownDevices.includes(behaviorInput.device)
-  );
-  const usualTimeMatch = (profile.usualLoginTimes[currentHour] || 0) >= 2;
+  const timeCount = profile.usualLoginTimes[currentHour] || 0;
+  const timeFamiliarity = Math.min(1, timeCount / 10);
+  const timeConfidence = Math.min(1, totalTimeEvidence / 5);
 
-  const adaptive = {
-    knownDeviceMatch,
-    usualTimeMatch
-  };
-
-  const device = calculateDeviceTrust(context, adaptive);
+  const device = calculateDeviceTrust(context, deviceFamiliarity, deviceConfidence);
   const behaviorTrust = calculateBehaviorTrust(context);
-  const network = calculateNetworkTrust(context);
-  const time = calculateTimeTrust(context, adaptive);
+  const network = calculateNetworkTrust(context, networkFamiliarity, networkConfidence);
+  const time = calculateTimeTrust(context, timeFamiliarity, timeConfidence);
 
   const failedAttempts = Number(context.failedAttempts) || 0;
   const hasExplicitRiskSignals =
@@ -420,28 +481,43 @@ function calculateTrust(user, context, behaviorInput = {}) {
     context.oddTime ||
     failedAttempts > 0;
 
-  // Keep demo telemetry moving even when no risk flags are present.
-  if (!hasExplicitRiskSignals) {
-    const base =
-      TRUST_DEMO_BASE_RANGE.min +
-      Math.random() * (TRUST_DEMO_BASE_RANGE.max - TRUST_DEMO_BASE_RANGE.min);
-    const jitter = () => Math.round((Math.random() * 2 - 1) * TRUST_DEMO_COMPONENT_JITTER);
-
-    device.score = clampScore(Math.round(base) + jitter());
-    behaviorTrust.score = clampScore(Math.round(base) + jitter());
-    network.score = clampScore(Math.round(base) + jitter());
-    time.score = clampScore(Math.round(base) + jitter());
-  }
+  const unnormalizedWeights = {
+    device: TRUST_DIMENSION_WEIGHTS.device * deviceConfidence * profile.dimensionReliability.device,
+    behavior: TRUST_DIMENSION_WEIGHTS.behavior * 1.0 * profile.dimensionReliability.behavior,
+    network: TRUST_DIMENSION_WEIGHTS.network * networkConfidence * profile.dimensionReliability.network,
+    time: TRUST_DIMENSION_WEIGHTS.time * timeConfidence * profile.dimensionReliability.time
+  };
+  const dynamicWeights = normalizeWeights(unnormalizedWeights);
 
   let finalTrust = Math.round(
-    TRUST_DIMENSION_WEIGHTS.device * device.score +
-      TRUST_DIMENSION_WEIGHTS.behavior * behaviorTrust.score +
-      TRUST_DIMENSION_WEIGHTS.network * network.score +
-      TRUST_DIMENSION_WEIGHTS.time * time.score
+    dynamicWeights.device * device.score +
+      dynamicWeights.behavior * behaviorTrust.score +
+      dynamicWeights.network * network.score +
+      dynamicWeights.time * time.score
   );
+
+  const dims = [
+    { score: device.score, confidence: deviceConfidence },
+    { score: behaviorTrust.score, confidence: 1.0 },
+    { score: network.score, confidence: networkConfidence },
+    { score: time.score, confidence: timeConfidence }
+  ];
+
+  const moderateDims = dims.filter(d => d.score >= 50 && d.score <= 85);
+  let compoundPenaltyReason = null;
+  let compoundPenalty = 0;
+  if (moderateDims.length >= 2) {
+    const avgConfidence = moderateDims.reduce((sum, d) => sum + d.confidence, 0) / moderateDims.length;
+    compoundPenalty = Math.round(Math.min(15, 5 * (moderateDims.length - 1)) * avgConfidence);
+    if (compoundPenalty > 0) {
+      finalTrust -= compoundPenalty;
+      compoundPenaltyReason = `Compound risk: multiple moderate risk signals detected (Penalty: -${compoundPenalty})`;
+    }
+  }
 
   const { min, max } = profile.typicalTrustScoreRange;
   if (
+    !compoundPenaltyReason &&
     hasExplicitRiskSignals &&
     profile.trustHistory.length >= 3 &&
     finalTrust >= min &&
@@ -451,7 +527,7 @@ function calculateTrust(user, context, behaviorInput = {}) {
   }
 
   const anomalyDetected = isAnomalyDetected(context);
-  const action = determineAction(finalTrust, context);
+  let action = determineAction(finalTrust, context);
 
   const reasons = [
     ...device.reasons.map((reason) => `deviceTrust: ${reason}`),
@@ -460,30 +536,12 @@ function calculateTrust(user, context, behaviorInput = {}) {
     ...time.reasons.map((reason) => `timeTrust: ${reason}`)
   ];
 
-  if (!hasExplicitRiskSignals) {
-    const componentEntries = [
-      ["deviceTrust", device.score],
-      ["behaviorTrust", behaviorTrust.score],
-      ["networkTrust", network.score],
-      ["timeTrust", time.score]
-    ];
-
-    const [strongestKey, strongestScore] = componentEntries.reduce((maxEntry, currentEntry) =>
-      currentEntry[1] > maxEntry[1] ? currentEntry : maxEntry
-    );
-    const [weakestKey, weakestScore] = componentEntries.reduce((minEntry, currentEntry) =>
-      currentEntry[1] < minEntry[1] ? currentEntry : minEntry
-    );
-
-    reasons.push(
-      `telemetry: ${TRUST_COMPONENT_LABELS[strongestKey]} strongest (${strongestScore})`
-    );
-    reasons.push(
-      `telemetry: ${TRUST_COMPONENT_LABELS[weakestKey]} needs attention (${weakestScore})`
-    );
+  if (compoundPenaltyReason) {
+    reasons.push(compoundPenaltyReason);
   }
 
   if (
+    !compoundPenaltyReason &&
     hasExplicitRiskSignals &&
     profile.trustHistory.length >= 3 &&
     finalTrust >= min &&
@@ -492,13 +550,37 @@ function calculateTrust(user, context, behaviorInput = {}) {
     reasons.push("adaptiveLearning: Trust score aligns with typical range");
   }
 
-  if (reasons.length === 0) {
-    reasons.push(DEFAULT_TRUST_REASON);
-  }
-
   let level = "FULL";
   if (finalTrust < ACCESS_LEVEL_TRUST_THRESHOLDS.full) level = "LIMITED";
   if (finalTrust < ACCESS_LEVEL_TRUST_THRESHOLDS.limited) level = "DENIED";
+
+  const overallConfidence = Math.min(
+    deviceConfidence,
+    networkConfidence,
+    timeConfidence
+  );
+
+  if (overallConfidence < 0.3) {
+    if (level === "FULL") {
+      level = "LIMITED";
+      reasons.push("Cold start: level capped at LIMITED due to low evidence confidence");
+    } else if (level === "DENIED") {
+      level = "LIMITED";
+      reasons.push("Cold start: level raised to LIMITED due to low evidence confidence");
+    }
+
+    if (action === "NORMAL") {
+      action = "STEP_UP_AUTH";
+      reasons.push("Cold start: action escalated to STEP_UP_AUTH due to low evidence confidence");
+    } else if (action === "BLOCK") {
+      action = "STEP_UP_AUTH";
+      reasons.push("Cold start: action reduced to STEP_UP_AUTH due to low evidence confidence");
+    }
+  }
+
+  if (reasons.length === 0) {
+    reasons.push(DEFAULT_TRUST_REASON);
+  }
 
   return {
     score: finalTrust,
@@ -517,7 +599,20 @@ function calculateTrust(user, context, behaviorInput = {}) {
       networkTrust: network.score,
       timeTrust: time.score
     },
-    weights: TRUST_DIMENSION_WEIGHTS,
+    weights: dynamicWeights,
+    dynamicWeights,
+    confidence: {
+      device: deviceConfidence,
+      behavior: 1.0,
+      network: networkConfidence,
+      time: timeConfidence,
+      overall: overallConfidence
+    },
+    compoundPenalty,
+    quarantineStatus: {
+      device: deviceEntry ? deviceEntry.status : "new",
+      network: networkEntry ? networkEntry.status : "new"
+    },
     userProfile: buildUserProfileSnapshot(profile)
   };
 }
@@ -627,8 +722,9 @@ app.post("/login", (req, res) => {
       context.unknownDevice = false;
     }
 
-    const trust = calculateTrust(username, context, { device, time });
-    updateUserProfile(profile, { device, time, trustScore: trust.score });
+    const ip = req.ip || (req.connection && req.connection.remoteAddress) || "unknown-ip";
+    const trust = calculateTrust(username, context, { device, time, ip });
+    updateUserProfile(profile, { device, time, trustScore: trust.score, ip });
 
     // Send response
     res.json({
@@ -653,15 +749,17 @@ app.get("/api/trust-score", (req, res) => {
   const device = req.query.device || req.headers["user-agent"] || "unknown-device";
   const time = req.query.time || new Date().toISOString();
 
+  const ip = req.ip || (req.connection && req.connection.remoteAddress) || "unknown-ip";
   const profile = getUserProfile(username);
   const context = buildTrustContext(req);
 
-  const trust = calculateTrust(username, context, { device, time });
+  const trust = calculateTrust(username, context, { device, time, ip });
 
   updateUserProfile(profile, {
     device,
     time,
-    trustScore: trust.score
+    trustScore: trust.score,
+    ip
   });
 
   trust.userProfile = buildUserProfileSnapshot(profile);
@@ -704,6 +802,51 @@ app.get("/api/secure-data", authenticateToken, (req, res) => {
   res.json({
     action: trust.action,
     data: "Sensitive Data"
+  });
+});
+
+app.post("/api/step-up-confirm", (req, res) => {
+  const { username, dimension, value, passed } = req.body;
+  if (!username || !dimension || !value) {
+    return res.status(400).json({ error: "Missing parameters" });
+  }
+
+  const profile = getUserProfile(username);
+  let evidenceMap;
+  if (dimension === "device") {
+    evidenceMap = profile.deviceEvidence;
+  } else if (dimension === "network") {
+    evidenceMap = profile.networkEvidence;
+  } else {
+    return res.status(400).json({ error: "Invalid dimension" });
+  }
+
+  if (evidenceMap && evidenceMap[value]) {
+    const entry = evidenceMap[value];
+    if (passed === true) {
+      entry.stepUpSuccesses = (entry.stepUpSuccesses || 0) + 1;
+      if (entry.stepUpSuccesses >= 2) {
+        entry.status = "trusted";
+      }
+    } else if (passed === false) {
+      profile.dimensionReliability[dimension] = Math.max(0.5, (profile.dimensionReliability[dimension] || 1.0) - 0.1);
+    }
+  }
+
+  profile.pendingStepUps.push({
+    dimension,
+    passed,
+    timestamp: new Date().toISOString()
+  });
+
+  if (profile.pendingStepUps.length > 30) {
+    profile.pendingStepUps.shift();
+  }
+
+  saveData();
+
+  res.json({
+    userProfile: buildUserProfileSnapshot(profile)
   });
 });
 
