@@ -72,11 +72,9 @@ The core trust engine evaluates four dimensions — Device, Behavior, Network, a
 
 ## 📂 Project Structure
 
-​```
 zero-trust-security-system/
 ├── frontend/   # React application
 └── backend/    # Node.js + Express server
-​```
 
 ---
 
